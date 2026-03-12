@@ -25,7 +25,7 @@ class Hexapawn(TwoPlayerGame):
             players[i].pawns = pawns #teraz to lista dictów
 
         self.players = players
-        self.current_player = random.choice([1,2]) # randomly choose player 1 or 2 to start the game
+      
 
     def valid_pawns(self,side)->list(tuple[int,int]):
         """ pass either self.opponent or self.player, this method returns a list of tuples of not captured pawns"""
@@ -45,7 +45,7 @@ class Hexapawn(TwoPlayerGame):
 
         return list(map(to_string, [(i, j) for i, j in moves]))
 
-    def opponent_possible_respawn(self)->tuple[int,int]:
+    def opponent_possible_respawn(self) -> tuple[int, int] | None:
         captured = []
         for pos in self.opponent.pawns:
             if pos[0] == -1:
@@ -106,37 +106,62 @@ class Hexapawn(TwoPlayerGame):
 
 
 if __name__ == "__main__":
-    from easyAI import AI_Player, Human_Player, Negamax
+    from easyAI import AI_Player, Negamax
 
-    # dicts to calculate wins
-    shallow_wins = {"1": 0, "2": 0}
-    deep_wins = {"1": 0, "2": 0}
+    # Keep scoring simple and terminal so the benchmark compares search depth only.
+    scoring = lambda game: -100 if game.lose() else 0
 
-    # more shallow search (8 moves ahead)
-    for i in range(10):
-        scoring = lambda game: -100 if game.lose() else 0
-        ai = Negamax(8, scoring)
-        game = Hexapawn([AI_Player(ai), AI_Player(ai)],probabilistic=True)
-        game.play()
-        shallow_wins[str(game.opponent_index)] += 1
-        # print("player %d wins after %d turns " % (game.opponent_index, game.nmove))
+    depth1 = 3
+    depth2 = 6
+    games_per_seat = 500
+    base_seed = 1337
 
-    # deeper searching (13 moves ahead)
-    for i in range(10):
-        scoring = lambda game: -100 if game.lose() else 0
-        ai = Negamax(13, scoring)
-        game = Hexapawn([AI_Player(ai), AI_Player(ai)],probabilistic=True)
-        game.play()
-        deep_wins[str(game.opponent_index)] += 1
-        # print("player %d wins after %d turns " % (game.opponent_index, game.nmove))
+    def run_matchup(probabilistic: bool, seed_offset: int = 0) -> dict[str, int]:
+        random.seed(base_seed + seed_offset)
+        wins_by_depth = {str(depth1): 0, str(depth2): 0}
+        mode_name = "probabilistic" if probabilistic else "deterministic"
+        total_games = games_per_seat * 2
 
-    # PvAI
-    # scoring = lambda game: -100 if game.lose() else 0
-    # ai = Negamax(13, scoring)
-    # game = Hexapawn([Human_Player(), AI_Player(ai)])
-    # game.play()
-    # deep_wins[str(game.opponent_index)] += 1
-    # print("player %d wins after %d turns " % (game.opponent_index, game.nmove))
+        def maybe_print_progress(done: int, last_printed: int) -> int:
+            percent = int(done * 100 / total_games)
+            if percent >= last_printed + 10 or done == total_games:
+                print(f"[{mode_name}] progress: {percent}% ({done}/{total_games})")
+                return percent
+            return last_printed
 
-    print("Shallow: ", shallow_wins)
-    print("Deep: ", deep_wins)
+        done = 0
+        last_printed = -10
+
+        for _ in range(games_per_seat):
+            game = Hexapawn(
+                [AI_Player(Negamax(depth1, scoring)), AI_Player(Negamax(depth2, scoring))],
+                probabilistic=probabilistic,
+            )
+            game.current_player = 1
+            game.play(verbose=False)
+            winner_depth = depth1 if game.opponent_index == 1 else depth2
+            wins_by_depth[str(winner_depth)] += 1
+            done += 1
+            last_printed = maybe_print_progress(done, last_printed)
+
+        for _ in range(games_per_seat):
+            game = Hexapawn(
+                [AI_Player(Negamax(depth2, scoring)), AI_Player(Negamax(depth1, scoring))],
+                probabilistic=probabilistic,
+            )
+            game.current_player = 1
+            game.play(verbose=False)
+            winner_depth = depth2 if game.opponent_index == 1 else depth1
+            wins_by_depth[str(winner_depth)] += 1
+            done += 1
+            last_printed = maybe_print_progress(done, last_printed)
+
+        return wins_by_depth
+
+    deterministic = run_matchup(probabilistic=False, seed_offset=0)
+    probabilistic = run_matchup(probabilistic=True, seed_offset=10_000)
+
+    total_games = games_per_seat * 2
+    print(f"Benchmark ({depth1} vs {depth2}, {total_games} games per mode)")
+    print("Deterministic wins by depth:", deterministic)
+    print("Probabilistic wins by depth:", probabilistic)
