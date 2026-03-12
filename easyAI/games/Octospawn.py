@@ -14,23 +14,28 @@ class Hexapawn(TwoPlayerGame):
     http://fr.wikipedia.org/wiki/Hexapawn
     """
 
-    def __init__(self, players, size=(4, 4)):
+    def __init__(self, players, size=(4, 4),probabilistic = False):
+        self.probabilistic = probabilistic
         self.size = M, N = size
         p = [[(i, j) for j in range(N)] for i in [0, M - 1]]
-
+        #[ [1:(0,1),2:(0,2),3:(0,3),(0,4)] , [(3,1),(3,2),(3,3),(3,4)]  ]
         for i, d, goal, pawns in [(0, 1, M - 1, p[0]), (1, -1, 0, p[1])]:
             players[i].direction = d
             players[i].goal_line = goal
-            players[i].pawns = pawns
+            players[i].pawns = pawns #teraz to lista dictów
 
         self.players = players
         self.current_player = random.choice([1,2]) # randomly choose player 1 or 2 to start the game
 
+    def valid_pawns(self,side)->list(tuple[int,int]):
+        """ pass either self.opponent or self.player, this method returns a list of tuples of not captured pawns"""
+        return [pos for pos in side.pawns if pos[0]!=-1 and pos[1]!=-1]
+    
     def possible_moves(self):
         moves = []
         opponent_pawns = self.opponent.pawns
         d = self.player.direction
-        for i, j in self.player.pawns:
+        for i, j in self.valid_pawns(self.player): #omit if there are captured pawns
             if (i + d, j) not in opponent_pawns:
                 moves.append(((i, j), (i + d, j)))
             if (i + d, j + 1) in opponent_pawns:
@@ -40,6 +45,12 @@ class Hexapawn(TwoPlayerGame):
 
         return list(map(to_string, [(i, j) for i, j in moves]))
 
+    def opponent_possible_respawn(self)->list(tuple[int,int]):
+        captured = []
+        for pos in self.opponent.pawns:
+            if pos[0] == -1:
+                captured.append((self.player.goal_line,pos[1]))
+        return captured
     def make_move(self, move):
         move = list(map(to_tuple, move.split(" ")))
         ind = self.player.pawns.index(move[0])
@@ -47,30 +58,28 @@ class Hexapawn(TwoPlayerGame):
 
         if move[1] in self.opponent.pawns:
             # capturing pawns after move
-            if not hasattr(self.player, "captured_pawns"):
-                self.player.captured_pawns = []
-            col = move[1][1]
-            start_row = self.opponent.goal_line
-            start_pos = (start_row, col)
 
-            self.player.captured_pawns.append(start_pos)
-            self.opponent.pawns.remove(move[1])
+            # if not hasattr(self.player, "captured_pawns"):
+            #     self.player.captured_pawns = []
+            # col = move[1][1]
+            # start_row = self.opponent.goal_line
+            # start_pos = (start_row, col)
 
-        # probabilistic variant, comment if needed
-        if hasattr(self.player, "captured_pawns") and self.player.captured_pawns:
-            # 10% chance
-            if random.random() < 0.1:
-                respawn_pos = random.choice(self.player.captured_pawns)
+            # self.player.captured_pawns.append(start_pos)
+            # self.opponent.pawns.remove(move[1])
 
-                # print("Trying respawn at:", respawn_pos)
+            idx = self.opponent.pawns.index(move[1])
+            self.opponent.pawns[idx] = (-1,idx) #captured pawn is in -1 row at its starting column
+                                       #captured pawn is opponents pawn than can now respawn again
 
-                if respawn_pos not in self.player.pawns and respawn_pos not in self.opponent.pawns:
-                    # print("Respawned at:", respawn_pos)
-                    self.player.pawns.append(respawn_pos)
-                    self.player.captured_pawns.remove(respawn_pos)
+        if self.probabilistic and random.random() < 0.1:     
+            for pos in self.opponent_possible_respawn():
+                #pos[1] is essentially the index
+                self.opponent.pawns[pos[1]]=(self.player.goal_line,pos[1])
+
 
     def lose(self):
-        return any([i == self.opponent.goal_line for i, j in self.opponent.pawns]) or (
+        return any([i == self.opponent.goal_line for i, j in self.valid_pawns(self.opponent)]) or (
             self.possible_moves() == []
         )
 
@@ -104,7 +113,7 @@ if __name__ == "__main__":
     for i in range(10):
         scoring = lambda game: -100 if game.lose() else 0
         ai = Negamax(8, scoring)
-        game = Hexapawn([AI_Player(ai), AI_Player(ai)])
+        game = Hexapawn([AI_Player(ai), AI_Player(ai)],probabilistic=True)
         game.play()
         shallow_wins[str(game.opponent_index)] += 1
         # print("player %d wins after %d turns " % (game.opponent_index, game.nmove))
@@ -113,7 +122,7 @@ if __name__ == "__main__":
     for i in range(10):
         scoring = lambda game: -100 if game.lose() else 0
         ai = Negamax(13, scoring)
-        game = Hexapawn([AI_Player(ai), AI_Player(ai)])
+        game = Hexapawn([AI_Player(ai), AI_Player(ai)],probabilistic=True)
         game.play()
         deep_wins[str(game.opponent_index)] += 1
         # print("player %d wins after %d turns " % (game.opponent_index, game.nmove))
