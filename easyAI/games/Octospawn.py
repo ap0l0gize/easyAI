@@ -106,35 +106,38 @@ class Hexapawn(TwoPlayerGame):
 
 
 if __name__ == "__main__":
+    import time
     from easyAI import AI_Player, Negamax
 
     # Keep scoring simple and terminal so the benchmark compares search depth only.
     scoring = lambda game: -100 if game.lose() else 0
 
-    depth1 = 3
-    depth2 = 6
-    games_per_seat = 500
+    depth1 = 1
+    depth2 = 3
+    games_per_seat = 50
     base_seed = 1337
 
-    def run_matchup(probabilistic: bool, seed_offset: int = 0) -> dict[str, int]:
-        random.seed(base_seed + seed_offset)
+    def run_matchup(probabilistic: bool, use_alpha_beta: bool = True) -> tuple[dict[str, int], float]:
+        random.seed(base_seed)
         wins_by_depth = {str(depth1): 0, str(depth2): 0}
         mode_name = "probabilistic" if probabilistic else "deterministic"
+        ab_name = "alpha-beta" if use_alpha_beta else "plain-negamax"
         total_games = games_per_seat * 2
 
         def maybe_print_progress(done: int, last_printed: int) -> int:
             percent = int(done * 100 / total_games)
             if percent >= last_printed + 10 or done == total_games:
-                print(f"[{mode_name}] progress: {percent}% ({done}/{total_games})")
+                print(f"[{mode_name}][{ab_name}] progress: {percent}% ({done}/{total_games})")
                 return percent
             return last_printed
 
         done = 0
         last_printed = -10
+        start = time.perf_counter()
 
         for _ in range(games_per_seat):
             game = Hexapawn(
-                [AI_Player(Negamax(depth1, scoring)), AI_Player(Negamax(depth2, scoring))],
+                [AI_Player(Negamax(depth1, scoring, use_alpha_beta=use_alpha_beta)), AI_Player(Negamax(depth2, scoring, use_alpha_beta=use_alpha_beta))],
                 probabilistic=probabilistic,
             )
             game.current_player = 1
@@ -146,7 +149,7 @@ if __name__ == "__main__":
 
         for _ in range(games_per_seat):
             game = Hexapawn(
-                [AI_Player(Negamax(depth2, scoring)), AI_Player(Negamax(depth1, scoring))],
+                [AI_Player(Negamax(depth2, scoring, use_alpha_beta=use_alpha_beta)), AI_Player(Negamax(depth1, scoring, use_alpha_beta=use_alpha_beta))],
                 probabilistic=probabilistic,
             )
             game.current_player = 1
@@ -156,12 +159,15 @@ if __name__ == "__main__":
             done += 1
             last_printed = maybe_print_progress(done, last_printed)
 
-        return wins_by_depth
-
-    deterministic = run_matchup(probabilistic=False, seed_offset=0)
-    probabilistic = run_matchup(probabilistic=True, seed_offset=10_000)
+        elapsed = time.perf_counter() - start
+        return wins_by_depth, elapsed
 
     total_games = games_per_seat * 2
     print(f"Benchmark ({depth1} vs {depth2}, {total_games} games per mode)")
-    print("Deterministic wins by depth:", deterministic)
-    print("Probabilistic wins by depth:", probabilistic)
+
+    for use_alpha_beta in [True, False]:
+        print("\n=== Negamax {} ===".format("with alpha-beta" if use_alpha_beta else "without alpha-beta"))
+        deterministic, t_det = run_matchup(probabilistic=False, use_alpha_beta=use_alpha_beta)
+        probabilistic, t_prob = run_matchup(probabilistic=True,  use_alpha_beta=use_alpha_beta)
+        print(f"Deterministic wins by depth: {deterministic} (time: {t_det:.2f}s)")
+        print(f"Probabilistic wins by depth: {probabilistic} (time: {t_prob:.2f}s)")
