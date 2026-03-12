@@ -45,12 +45,14 @@ class Hexapawn(TwoPlayerGame):
 
         return list(map(to_string, [(i, j) for i, j in moves]))
 
-    def opponent_possible_respawn(self)->list(tuple[int,int]):
+    def opponent_possible_respawn(self)->tuple[int,int]:
         captured = []
         for pos in self.opponent.pawns:
             if pos[0] == -1:
                 captured.append((self.player.goal_line,pos[1]))
-        return captured
+        if captured:
+            return captured[random.randrange(0,len(captured))]
+        return None
     def make_move(self, move):
         move = list(map(to_tuple, move.split(" ")))
         ind = self.player.pawns.index(move[0])
@@ -73,8 +75,9 @@ class Hexapawn(TwoPlayerGame):
                                        #captured pawn is opponents pawn than can now respawn again
 
         if self.probabilistic and random.random() < 0.1:     
-            for pos in self.opponent_possible_respawn():
+            pos = self.opponent_possible_respawn()
                 #pos[1] is essentially the index
+            if pos:
                 self.opponent.pawns[pos[1]]=(self.player.goal_line,pos[1])
 
 
