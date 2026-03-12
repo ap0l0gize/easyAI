@@ -18,7 +18,7 @@ class Hexapawn(TwoPlayerGame):
         self.probabilistic = probabilistic
         self.size = M, N = size
         p = [[(i, j) for j in range(N)] for i in [0, M - 1]]
-        #[ [1:(0,1),2:(0,2),3:(0,3),(0,4)] , [(3,1),(3,2),(3,3),(3,4)]  ]
+        #[ [(0,1),(0,2),(0,3),(0,4)] , [(3,1),(3,2),(3,3),(3,4)]  ]
         for i, d, goal, pawns in [(0, 1, M - 1, p[0]), (1, -1, 0, p[1])]:
             players[i].direction = d
             players[i].goal_line = goal
