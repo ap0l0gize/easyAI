@@ -2,7 +2,7 @@
 The standard AI algorithm of easyAI is Negamax with alpha-beta pruning
 and (optionnally), transposition tables.
 """
-
+from easyAI.games.Octospawn import Hexapawn
 import pickle
 
 LOWERBOUND, EXACT, UPPERBOUND = -1, 0, 1
@@ -10,7 +10,7 @@ inf = float("infinity")
 
 
 def negamax(
-    game,
+    game: Hexapawn,
     depth,
     origDepth,
     scoring,
@@ -18,6 +18,8 @@ def negamax(
     beta=-inf,
     tt=None,
     use_alpha_beta=True,
+    expecti_minimax = False,
+    random_node = False
 ):
     """
     This implements Negamax with transposition tables.
@@ -76,15 +78,34 @@ def negamax(
 
     bestValue = -inf
     unmake_move = hasattr(state, "unmake_move")
+    if expecti_minimax and random_node:
+        expected_value = 0
+        divider = 0
+        for i, move in enumerate (possible_moves):
+            # tu nwm czY - czy +
+            divider += (0.1 if i in game.player.random_move_idxs else 1 )
+            expected_value += (0.1 if i in game.player.random_move_idxs else 1 ) * negamax(
+            game,
+            depth - 1,
+            origDepth,
+            scoring,
+            -beta,
+            -alpha,
+            tt,
+            use_alpha_beta,
+            expecti_minimax,
+            random_node = True if i in game.player.random_move_idxs else False
+        )
+        return expected_value/divider
 
-    for move in possible_moves:
-
+        #do expecti minimax sum
+    for i, move in enumerate (possible_moves):
         if not unmake_move:
             game = state.copy()  # re-initialize move
 
         game.make_move(move)
         game.switch_player()
-
+        
         move_alpha = -negamax(
             game,
             depth - 1,
@@ -94,6 +115,8 @@ def negamax(
             -alpha,
             tt,
             use_alpha_beta,
+            expecti_minimax,
+            random_node = True if i in game.player.random_move_idxs else False
         )
 
         if unmake_move:
