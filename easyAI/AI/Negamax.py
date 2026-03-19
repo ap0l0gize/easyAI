@@ -78,25 +78,30 @@ def negamax(
 
     bestValue = -inf
     unmake_move = hasattr(state, "unmake_move")
+  
     if expecti_minimax and random_node:
+   
         expected_value = 0
         divider = 0
+
+       
+
         for i, move in enumerate (possible_moves):
             # tu nwm czY - czy +
+            if not unmake_move:
+                game = state.copy()  # re-initialize move
+
+            game.make_move(move)
+            game.switch_player()
             divider += (0.1 if i in game.player.random_move_idxs else 1 )
-            expected_value += (0.1 if i in game.player.random_move_idxs else 1 ) * negamax(
-            game,
-            depth - 1,
-            origDepth,
-            scoring,
-            -beta,
-            -alpha,
-            tt,
-            use_alpha_beta,
-            expecti_minimax,
-            random_node = True if i in game.player.random_move_idxs else False
-        )
-        return expected_value/divider
+            expected_value += (0.1 if i in game.player.random_move_idxs else 1 ) * (-negamax(game,depth - 1,origDepth,scoring,-beta,-alpha,tt,use_alpha_beta,expecti_minimax=expecti_minimax,random_node = True if i in game.player.random_move_idxs else False))
+            if unmake_move:
+                game.switch_player()
+                game.unmake_move(move)
+
+        
+      
+        return expected_value/divider if divider>0 else 0.0
 
         #do expecti minimax sum
     for i, move in enumerate (possible_moves):
@@ -115,7 +120,7 @@ def negamax(
             -alpha,
             tt,
             use_alpha_beta,
-            expecti_minimax,
+            expecti_minimax=expecti_minimax,
             random_node = True if i in game.player.random_move_idxs else False
         )
 
@@ -211,12 +216,14 @@ class Negamax:
         win_score=+inf,
         tt=None,
         use_alpha_beta=True,
+        expecti_minimax=False
     ):
         self.scoring = scoring
         self.depth = depth
         self.tt = tt
         self.win_score = win_score
         self.use_alpha_beta = use_alpha_beta
+        self.expecti_minimax = expecti_minimax
 
     def __call__(self, game):
         """
@@ -236,5 +243,6 @@ class Negamax:
             (+self.win_score) if self.use_alpha_beta else +inf,
             self.tt,
             self.use_alpha_beta,
+            expecti_minimax=self.expecti_minimax
         )
         return game.ai_move
